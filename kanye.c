@@ -7,11 +7,15 @@
 #include <unistd.h>
 
 //Global Variables
-const int WIDTH = 50;
+const int WIDTH = 100;
 const int HEIGHT = 50;
-const int pixelsLength = 50*50;
-float pixels[50*50];
+const int pixelsLength = 100*50;
+float pixels[100*50];
+float zs[100*50];
 const char * cols = " .,:;$#";
+const float charRatio = 2/1;
+float DRAWDIST = 1000;
+
 
 struct mat {
     float m[4][4];
@@ -86,6 +90,12 @@ void initZero(struct mat * in) {
     }
 }
 
+void clearzs() {
+    for (int i = 0; i<WIDTH*HEIGHT; i++) {
+	zs[i] = DRAWDIST;
+    }
+}
+
 void initCamera(struct camera *cam) {
     cam->pos.x = 0;
     cam->pos.y = 0;
@@ -99,21 +109,21 @@ void initCamera(struct camera *cam) {
 void draw() {
     for (int j = 0; j<HEIGHT; j++) {
         for (int i = 0; i<WIDTH; i++) {
-            float tone = pixels[i + j*WIDTH]/255;
-            if  (tone < 0.14) {
-                printf(" ");
+            float tone = ((float) pixels[i + j*WIDTH])/255;	
+	    if  (tone < 0.14) {
+                printf("%c", cols[0]);
             } else if (tone < 0.28) {
-                printf(".");
+                printf("%c", cols[1]);
             } else if (tone < 0.42) {
-                printf(",");
+                printf("%c", cols[2]);
             } else if (tone < 0.56) {
-                printf(":");
+                printf("%c", cols[3]);
             } else if (tone < 0.7) {
-                printf(";");
+                printf("%c", cols[4]);
             } else if (tone < 0.84) {
-                printf("$");
+                printf("%c", cols[5]);
             } else {
-                printf("#");
+                printf("%c", cols[6]);
             }
         }
         printf("\n");
@@ -121,9 +131,17 @@ void draw() {
 }
 
 void set(float x, float y, float col) {
-    
     if ((x >= 0) && (y >= 0) && (x <= WIDTH) && (y < HEIGHT)) {
         pixels[(int) (x + (((int) y) * WIDTH))] = col;
+    }
+}
+
+void set3d(float x, float y, float z, float col) {
+    if (((x >= 0) && (y >= 0)) && ((x <= WIDTH) && (y < HEIGHT))) {
+	if (zs[((int) x) + ((int) y)*WIDTH] > z) {
+	    zs[((int) x) +((int) y)*WIDTH] = z;
+	    pixels[((int) x) + ((int) y)*WIDTH] = col;
+	}
     }
 }
 
@@ -187,7 +205,7 @@ struct vector pointmultimat(struct vector vec, struct mat ma) {
 struct tri trianglemultmat(struct tri tr, struct mat ma) {
     struct tri out = {
         .p1 = pointmultimat(tr.p1, ma),
-        .p2 = pointmultimat	(tr.p2, ma),
+        .p2 = pointmultimat(tr.p2, ma),
         .p3 = pointmultimat(tr.p3, ma),
     };
     return out;
@@ -242,7 +260,7 @@ void triangle(float x1, float y1, float x2, float y2, float x3, float y3) {
 }
 
 void triTri(struct tri t) {
-    triangle(t.p1.x * WIDTH/2 + WIDTH/2, t.p1.y * HEIGHT/2 + HEIGHT/2, t.p2.x * WIDTH/2 + WIDTH/2, t.p2.y * HEIGHT/2 + HEIGHT/2, t.p3.x * WIDTH/2 + WIDTH/2, t.p3.y * HEIGHT/2 + HEIGHT/2);
+    triangle((t.p1.x * WIDTH/2) * charRatio + WIDTH/2, t.p1.y * HEIGHT/2 + HEIGHT/2, (t.p2.x * WIDTH/2 ) * charRatio + WIDTH/2, t.p2.y * HEIGHT/2 + HEIGHT/2, (t.p3.x * WIDTH/2) * charRatio + WIDTH/2, t.p3.y * HEIGHT/2 + HEIGHT/2);
 }
 
 struct vector crossProduct(struct vector v1, struct vector v2) {
@@ -269,6 +287,104 @@ struct vector vecSubtract(struct vector v1, struct vector v2) {
     return out;
 }
 
+void fillTriangle3d(float x1, float y1, float x2, float y2, float x3, float y3, float z, float col) {
+  struct vector vecs [3];
+
+  vecs[0].x = x1;
+  vecs[0].y = y1;
+  vecs[1].x = x2;
+  vecs[1].y = y2;
+  vecs[2].x = x3;
+  vecs[2].y = y3;
+
+  int top = 0;
+  int bottom = 0;
+  for (int i = 0; i<3;i++) {
+    if (vecs[i].y > vecs[top].y) top = i;
+    if (vecs[i].y < vecs[bottom].y) bottom = i;
+  }
+  
+  int middle = 0;
+  
+  for (int i = 0; i<3; i++) {
+    if ((bottom != i) && (top != i)) middle = i;
+  }
+  
+  struct vector v1 = vecSubtract(vecs[bottom], vecs[middle]);
+  struct vector v2 = vecSubtract(vecs[bottom], vecs[top]);
+  
+  float v1a = v1.x/v1.y;
+  float v2a = v2.x/v2.y;
+  
+  struct vector np = {
+	  .x = (vecs[middle].y-vecs[bottom].y)*v2a + vecs[bottom].x,
+	  .y =  vecs[middle].y,
+  };
+  
+  for (int i = 0; i<=vecs[middle].y-vecs[bottom].y; i++) {
+    float v1x = v1a*i;
+    float v2x = v2a*i;
+    int dir;
+    
+    
+    //point(floor(vecs[bottom].x + v1x) , floor(i + vecs[bottom].y));
+    //point(floor(vecs[bottom].x + v2x) , floor(i + vecs[bottom].y));
+    
+    int x1 = round(vecs[bottom].x + v1x);
+    int x2 = round(vecs[bottom].x + v2x);
+    
+    int y = floor(i + vecs[bottom].y);
+    
+    
+    if (x1 > x2) {
+      dir = -1;
+    } else {
+      dir = 1;
+    }
+    
+    
+    
+    for (int j = x1; j != x2+dir; j+=dir) {
+      set3d(j, y, z, col);
+    }
+  }
+  
+  struct vector vv1 = vecSubtract(vecs[middle], vecs[top]);
+  struct vector vv2 = vecSubtract(np, vecs[top]);
+  
+  float vv1a = vv1.x/vv1.y;  
+  float vv2a = vv2.x/vv2.y;
+  
+  for (int i = 0; i<(vecs[top].y - vecs[middle].y); i++) {
+    float v1x = vv1a*i;
+    float v2x = vv2a*i;
+    int dir;
+    
+    int x1 = round(vecs[middle].x + v1x);
+    int x2 = round(np.x + v2x);
+    
+    int y = floor(i + vecs[middle].y);
+    
+    if (x1 > x2) {
+      dir = -1;
+    } else {
+      dir = 1;
+    }
+    
+    
+    for (int j = x1; j != x2+dir; j+=dir) {
+      set3d(j, y, z, col);
+    }
+  }
+}
+
+void fillTri(struct tri t, float col) {
+    float z = (t.p1.z + t.p2.z + t.p3.z)/3;
+    fillTriangle3d((t.p1.x * WIDTH/2) * charRatio + WIDTH/2, t.p1.y * HEIGHT/2 + HEIGHT/2, (t.p2.x * WIDTH/2 ) * charRatio + WIDTH/2, t.p2.y * HEIGHT/2 + HEIGHT/2, (t.p3.x * WIDTH/2) * charRatio + WIDTH/2, t.p3.y * HEIGHT/2 + HEIGHT/2, z, col);
+}
+
+
+
 struct vector getNormal(struct tri in) {
     struct vector v1 = vecSubtract(in.p1, in.p2);
     struct vector v2 = vecSubtract(in.p1, in.p3);
@@ -285,9 +401,15 @@ void wireMesh(struct tri in [], int len, struct camera cam) {
     }
 }
 
-
-void ftriangle(float x1, float y1, float x2, float y2, float x3, float y3) {
-
+void fillMesh(struct tri in [], int len, struct camera cam, struct vector light) {
+    struct tri mapped [len];
+    struct mat proj;
+    getProjectionMat(cam, &proj);
+    meshmultmat(in, mapped, len, proj);
+    for (int i = 0; i<len; i++) {
+	float col = (dotProduct(getNormal(in[i]), light) + 1)*0.5*255;
+        if (dotProduct(vecSubtract(in[i].p1,cam.pos), getNormal(in[i])) < 0) fillTri(mapped[i], col);
+    }
 }
 
 void background(float col) {
@@ -308,6 +430,7 @@ void wait(int t) {
 
 void loop(int frameCount) {
     background(0);
+    clearzs();
     struct camera cam;
     initCamera(&cam);
 
@@ -422,8 +545,13 @@ mesh[11].p3.y = 1.0;
 mesh[11].p3.z = -1.0;
     
 
+    struct vector light = {
+	.x = 0.6f,
+	.y = 0,
+	.z = -0.4,
+    };
+
     float rot = (((float) frameCount) / 10);
-	printf("%f\n", rot);
 
     rotateMesh(mesh, 12, rot, rot, 0.0f);
 
@@ -439,6 +567,8 @@ mesh[11].p3.z = -1.0;
 
     meshmultmat(mesh, transd, 12, translate);
 
+    fillMesh(transd, 12, cam, light);
+
     wireMesh(transd, 12, cam);
 
     
@@ -447,15 +577,28 @@ mesh[11].p3.z = -1.0;
     triangle(10, 2, 20, 18, 30, 10);*/
 }
 
-int main()  { 
-    struct mat m;
-    initOne(&m);
+void run(void (*f)(int), int frameCount, float frameRate) {
+    clock_t mt;
+    mt = clock();
+    clock_t t;
+    t = clock();
+    f(frameCount);
+    while ( ((double)t - (double)mt)/CLOCKS_PER_SEC < 1/frameRate ) {
+	t = clock();
+    }
+}
+
+void engine(int frameCount) {
+    //clear();
+    loop(frameCount);
+    draw();
+}
+
+int main()  {
+    
     int frameCount = 0;
     do {
-        clear();
-        loop(frameCount % 62);
-        draw();
-        wait(100);
+	run(engine, frameCount, 30);
         frameCount++;
     } while (1);
     clear();
