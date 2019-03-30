@@ -7,10 +7,10 @@
 #include <unistd.h>
 
 //Global Variables
-const int WIDTH = 80;
-const int HEIGHT = 23;
-const int pixelsLength = 80*23;
-float pixels[80*23];
+const int WIDTH = 50;
+const int HEIGHT = 50;
+const int pixelsLength = 50*50;
+float pixels[50*50];
 const char * cols = " .,:;$#";
 
 struct mat {
@@ -18,10 +18,10 @@ struct mat {
 };
 
 struct vector {
-    int x;
-    int y;
-    int z;
-    int w;
+    float x;
+    float y;
+    float z;
+    float w;
 };
 
 struct tri {
@@ -31,6 +31,7 @@ struct tri {
 };
 
 struct camera {
+    struct vector pos;
     float pNear;
     float pFar;
     float fov;
@@ -86,10 +87,13 @@ void initZero(struct mat * in) {
 }
 
 void initCamera(struct camera *cam) {
-    cam->fov = 3.141592/1.5;
+    cam->pos.x = 0;
+    cam->pos.y = 0;
+    cam->pos.z = 0;
+    cam->fov = 3.141592/4;
     cam->pFar = 1000;
-    cam->pNear = 0.1;
-    cam->fovRad = 1/tanf(cam->fov/2);
+    cam->pNear = 0.1f;
+    cam->fovRad = 1/tanf((cam->fov)/2);
 }
 
 void draw() {
@@ -183,7 +187,7 @@ struct vector pointmultimat(struct vector vec, struct mat ma) {
 struct tri trianglemultmat(struct tri tr, struct mat ma) {
     struct tri out = {
         .p1 = pointmultimat(tr.p1, ma),
-        .p2 = pointmultimat(tr.p2, ma),
+        .p2 = pointmultimat	(tr.p2, ma),
         .p3 = pointmultimat(tr.p3, ma),
     };
     return out;
@@ -216,11 +220,15 @@ void rotateMesh(struct tri * mesh, int len, float xrot, float yrot, float zrot) 
     m.m[1][1] = cosf(zrot);
     m.m[0][1] = sinf(zrot);
     meshmultmat(mesh, mesh, len, m);
+
+	//fopen filename
+
 }
 
 void getProjectionMat(struct camera cam, struct mat * out) {
     initZero(out);
-    out->m[0][0] = cam.fovRad/(((float) WIDTH) / ((float) HEIGHT));
+    float aspectRatio = ((float) WIDTH) / ((float) HEIGHT);
+    out->m[0][0] = cam.fovRad/aspectRatio;
     out->m[1][1] = cam.fovRad;
     out->m[2][2] = cam.pFar/(cam.pFar - cam.pNear);
     out->m[3][2] = -(cam.pFar * cam.pNear)/(cam.pFar - cam.pNear);
@@ -233,15 +241,50 @@ void triangle(float x1, float y1, float x2, float y2, float x3, float y3) {
     line(x3, y3, x1, y1);
 }
 
+void triTri(struct tri t) {
+    triangle(t.p1.x * WIDTH/2 + WIDTH/2, t.p1.y * HEIGHT/2 + HEIGHT/2, t.p2.x * WIDTH/2 + WIDTH/2, t.p2.y * HEIGHT/2 + HEIGHT/2, t.p3.x * WIDTH/2 + WIDTH/2, t.p3.y * HEIGHT/2 + HEIGHT/2);
+}
+
+struct vector crossProduct(struct vector v1, struct vector v2) {
+    struct vector out;
+
+    out.x = v1.y*v2.z - v1.z*v2.y;
+    out.y = v1.z*v2.x - v1.x*v2.z;
+    out.z = v1.x*v2.y - v1.y*v2.x;
+
+    return out;
+}
+
+float dotProduct(struct vector v1, struct vector v2) {
+    float out =	v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+    return out;
+}
+
+struct vector vecSubtract(struct vector v1, struct vector v2) {
+    struct vector out = {
+	.x = v1.x - v2.x,
+	.y = v1.y - v2.y,
+	.z = v1.z - v2.z,
+    };
+    return out;
+}
+
+struct vector getNormal(struct tri in) {
+    struct vector v1 = vecSubtract(in.p1, in.p2);
+    struct vector v2 = vecSubtract(in.p1, in.p3);
+    return crossProduct(v1, v2);
+}
+
 void wireMesh(struct tri in [], int len, struct camera cam) {
     struct tri mapped [len];
     struct mat proj;
     getProjectionMat(cam, &proj);
     meshmultmat(in, mapped, len, proj);
     for (int i = 0; i<len; i++) {
-        triangle(mapped[i].p1.x, mapped[i].p1.y, mapped[i].p2.x, mapped[i].p2.y, mapped[i].p3.x, mapped[i].p3.y);
+        if (dotProduct(vecSubtract(in[i].p1,cam.pos), getNormal(in[i])) < 0) triTri(mapped[i]);
     }
 }
+
 
 void ftriangle(float x1, float y1, float x2, float y2, float x3, float y3) {
 
@@ -267,42 +310,139 @@ void loop(int frameCount) {
     background(0);
     struct camera cam;
     initCamera(&cam);
-    struct tri mesh [2];
 
-    struct tri one = {
-        .p1 = {
-            .x = 0,
-            .y = 0,
-            .z = 0,
-        },
-        .p2 = {
-            .x = 0,
-            .y = 20,
-            .z = 0,
-        },
-        .p3 = {
-            .x = 50,
-            .y = 0,
-            .z = 0,
-        },
-    };
-
-    mesh[0].p1.x = 4;
-    mesh[0].p1.y = 4;
-    mesh[0].p1.z = 4;
-
-    mesh[0].p2.x = 50;
-    mesh[0].p2.y = 4;
-    mesh[0].p2.z = 4;
-
-    mesh[0].p3.x = 4;
-    mesh[0].p3.y = 20;
-    mesh[0].p3.z = 4;
-
-    float rot = ((float) frameCount) / 10;
-    rotateMesh(mesh, 1, 0.0f, 0.0f, rot);
-    wireMesh(mesh, 1, cam);
+struct tri mesh [12];
+mesh[0].p1.x = 1.0;
+mesh[0].p1.y = -1.0;
+mesh[0].p1.z = 1.0;
+mesh[0].p2.x = -1.0;
+mesh[0].p2.y = -1.0;
+mesh[0].p2.z = -1.0;
+mesh[0].p3.x = 1.0;
+mesh[0].p3.y = -1.0;
+mesh[0].p3.z = -1.0;
+mesh[1].p1.x = -1.0;
+mesh[1].p1.y = 1.0;
+mesh[1].p1.z = -1.0;
+mesh[1].p2.x = 0.999999;
+mesh[1].p2.y = 1.0;
+mesh[1].p2.z = 1.000001;
+mesh[1].p3.x = 1.0;
+mesh[1].p3.y = 1.0;
+mesh[1].p3.z = -0.999999;
+mesh[2].p1.x = 1.0;
+mesh[2].p1.y = 1.0;
+mesh[2].p1.z = -0.999999;
+mesh[2].p2.x = 1.0;
+mesh[2].p2.y = -1.0;
+mesh[2].p2.z = 1.0;
+mesh[2].p3.x = 1.0;
+mesh[2].p3.y = -1.0;
+mesh[2].p3.z = -1.0;
+mesh[3].p1.x = 0.999999;
+mesh[3].p1.y = 1.0;
+mesh[3].p1.z = 1.000001;
+mesh[3].p2.x = -1.0;
+mesh[3].p2.y = -1.0;
+mesh[3].p2.z = 1.0;
+mesh[3].p3.x = 1.0;
+mesh[3].p3.y = -1.0;
+mesh[3].p3.z = 1.0;
+mesh[4].p1.x = -1.0;
+mesh[4].p1.y = -1.0;
+mesh[4].p1.z = 1.0;
+mesh[4].p2.x = -1.0;
+mesh[4].p2.y = 1.0;
+mesh[4].p2.z = -1.0;
+mesh[4].p3.x = -1.0;
+mesh[4].p3.y = -1.0;
+mesh[4].p3.z = -1.0;
+mesh[5].p1.x = 1.0;
+mesh[5].p1.y = -1.0;
+mesh[5].p1.z = -1.0;
+mesh[5].p2.x = -1.0;
+mesh[5].p2.y = 1.0;
+mesh[5].p2.z = -1.0;
+mesh[5].p3.x = 1.0;
+mesh[5].p3.y = 1.0;
+mesh[5].p3.z = -0.999999;
+mesh[6].p1.x = 1.0;
+mesh[6].p1.y = -1.0;
+mesh[6].p1.z = 1.0;
+mesh[6].p2.x = -1.0;
+mesh[6].p2.y = -1.0;
+mesh[6].p2.z = 1.0;
+mesh[6].p3.x = -1.0;
+mesh[6].p3.y = -1.0;
+mesh[6].p3.z = -1.0;
+mesh[7].p1.x = -1.0;
+mesh[7].p1.y = 1.0;
+mesh[7].p1.z = -1.0;
+mesh[7].p2.x = -1.0;
+mesh[7].p2.y = 1.0;
+mesh[7].p2.z = 1.0;
+mesh[7].p3.x = 0.999999;
+mesh[7].p3.y = 1.0;
+mesh[7].p3.z = 1.000001;
+mesh[8].p1.x = 1.0;
+mesh[8].p1.y = 1.0;
+mesh[8].p1.z = -0.999999;
+mesh[8].p2.x = 0.999999;
+mesh[8].p2.y = 1.0;
+mesh[8].p2.z = 1.000001;
+mesh[8].p3.x = 1.0;
+mesh[8].p3.y = -1.0;
+mesh[8].p3.z = 1.0;
+mesh[9].p1.x = 0.999999;
+mesh[9].p1.y = 1.0;
+mesh[9].p1.z = 1.000001;
+mesh[9].p2.x = -1.0;
+mesh[9].p2.y = 1.0;
+mesh[9].p2.z = 1.0;
+mesh[9].p3.x = -1.0;
+mesh[9].p3.y = -1.0;
+mesh[9].p3.z = 1.0;
+mesh[10].p1.x = -1.0;
+mesh[10].p1.y = -1.0;
+mesh[10].p1.z = 1.0;
+mesh[10].p2.x = -1.0;
+mesh[10].p2.y = 1.0;
+mesh[10].p2.z = 1.0;
+mesh[10].p3.x = -1.0;
+mesh[10].p3.y = 1.0;
+mesh[10].p3.z = -1.0;
+mesh[11].p1.x = 1.0;
+mesh[11].p1.y = -1.0;
+mesh[11].p1.z = -1.0;
+mesh[11].p2.x = -1.0;
+mesh[11].p2.y = -1.0;
+mesh[11].p2.z = -1.0;
+mesh[11].p3.x = -1.0;
+mesh[11].p3.y = 1.0;
+mesh[11].p3.z = -1.0;
     
+
+    float rot = (((float) frameCount) / 10);
+	printf("%f\n", rot);
+
+    rotateMesh(mesh, 12, rot, rot, 0.0f);
+
+    struct tri transd [12];
+
+    struct mat translate;
+
+    initOne(&translate);
+
+    translate.m[3][0] = 0.0f;
+    translate.m[3][1] = 0.0f;
+    translate.m[3][2] = 5.0f + 2*(sinf(rot) + 1);
+
+    meshmultmat(mesh, transd, 12, translate);
+
+    wireMesh(transd, 12, cam);
+
+    
+
     /*line(15, 7, 25, 10);
     triangle(10, 2, 20, 18, 30, 10);*/
 }
@@ -313,9 +453,9 @@ int main()  {
     int frameCount = 0;
     do {
         clear();
-        loop(frameCount);
+        loop(frameCount % 62);
         draw();
-        wait(1000);
+        wait(100);
         frameCount++;
     } while (1);
     clear();
