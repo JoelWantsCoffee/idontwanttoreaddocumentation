@@ -8,6 +8,7 @@
 #include <locale.h>
 #include <pthread.h>
 #include <termios.h>
+#include <X11/Xlib.h>
 
 //Global Variables
 const int WIDTH = 299;
@@ -57,6 +58,8 @@ struct tri {
 
 struct camera {
     struct vector pos;
+    float hrot;
+    float vrot;
     float pNear;
     float pFar;
     float fov;
@@ -121,6 +124,8 @@ void clearzs() {
 }
 
 void initCamera(struct camera *cam) {
+    cam->hrot = 0;
+    cam->vrot = 0;
     cam->pos.x = 0;
     cam->pos.y = 0;
     cam->pos.z = 0;
@@ -595,6 +600,7 @@ void wireMesh(struct tri in [], int len, struct camera cam) {
     struct tri mapped [len];
     struct mat proj;
     getProjectionMat(cam, &proj);
+    
     meshmultmat(in, mapped, len, proj);
     for (int i = 0; i<len; i++) {
         if (dotProduct(vecSubtract(in[i].p1,cam.pos), getNormal(in[i])) > 0) triTri(mapped[i]);
@@ -614,8 +620,8 @@ void fillMesh(struct tri in [], int len, struct camera cam, struct vector light)
     getProjectionMat(cam, &proj);
     struct mat translate;
     initOne(&translate);
-    translate.m[3][0] = -cam.pos.x;
-    translate.m[3][1] = -cam.pos.y;
+    translate.m[3][0] = cam.pos.x;
+    translate.m[3][1] = cam.pos.y;
     translate.m[3][2] = -cam.pos.z;
     struct vector pl = {
     	.x = 0,
@@ -4046,8 +4052,15 @@ void loop(int frameCount, struct camera * cam) {
     translate.m[3][2] = 9;// + 4*(sinf(rot) + 0);
 
 
-    if (keyDown[0] == 1) cam->pos.z++;
-    if (keyDown[2] == 1) cam->pos.z--;
+    if (keyDown[0]) cam->pos.z++;
+    if (keyDown[2]) cam->pos.z--;
+    if (keyDown[1]) cam->pos.x++;
+    if (keyDown[3]) cam->pos.x--;
+
+    if (keyDown[4]) cam->pos.y++;
+    if (keyDown[6]) cam->pos.y--;
+
+    //for (int i = 0; i<sizeof(keyDown); i++) keyDown[i] = 0;
 
     meshmultmat(mesh, transd, objlen, translate);
 
@@ -4074,21 +4087,49 @@ void engine(int frameCount, struct camera * cam) {
 }
 
 void* getIns() {
-    char b[10];
-    read(STDIN_FILENO, b, 10);
-    for (int i = 0; i<4; i++) {
-	if (b[0] == keys[i]) {
-	    keyDown[i] = 1;
-	} else {
-	    keyDown[i] = 0;
-	}
+    char b[5];
+    b[0] = ' ';
+    int size = sizeof(keyDown);
+    //system("xset r rate 10 100");
+    read(STDIN_FILENO, b, 5);
+    for (int i = 0; i<size; i++) {
+        if (b[0] == keys[i]) {
+            keyDown[i] = 1;
+        } else {
+            keyDown[i] = 0;
+        }
     }
-    //printf("%c%c", b[0], b[0]);
+    //system("xset r rate 220 20");
     fflush(stdout);
+}
+
+void getIn(XEvent *e) {
+    XKeyEvent *ke = (XKeyEvent *) e;
+    int on = (e->type == KeyPress);
+    if (ke->keycode == 25) keyDown[0] = on;
+    if (ke->keycode == 38) keyDown[1] = on;
+    if (ke->keycode == 39) keyDown[2] = on;
+    if (ke->keycode == 40) keyDown[3] = on;
+
+    if (ke->keycode == 31) keyDown[4] = on;
+    if (ke->keycode == 44) keyDown[5] = on;
+    if (ke->keycode == 45) keyDown[6] = on;
+    if (ke->keycode == 46) keyDown[7] = on;
+	//printf("coolio %c", ke->keycode);
 }
 
 int main()  {
     //printf("\033[47:47m");
+    Display *disp;
+    Window win;
+    XEvent event;
+    
+    disp = XOpenDisplay(NULL);
+
+    int screen = DefaultScreen(disp);
+
+    win = XCreateSimpleWindow(disp, RootWindow(disp, screen), 100, 100, 100, 100, 1, BlackPixel(disp, screen), WhitePixel(disp, screen));
+
     static struct termios told, tnew;
     tcgetattr( STDIN_FILENO, &told);
     tnew = told;
@@ -4100,13 +4141,29 @@ int main()  {
     struct camera cam;
     initCamera(&cam);
 
-    pthread_create(&getInputs, NULL, getIns, NULL);
+    XSelectInput(disp, win, ExposureMask | KeyPressMask | KeyReleaseMask);
+    XMapWindow(disp, win);
+    //pthread_create(&getInputs, NULL, getIns, (void*)&args);
     do {
-	pthread_create(&getInputs, NULL, getIns, NULL);
-	//if (fgetc(stdin) == 'w') printf("cool");
-	run(engine, frameCount % 62, 30, &cam);
-	frameCount++;
-        printf("cam pos z: %f", cam.pos.z);
+	    //pthread_create(&getInputs, NULL, getIns, (void*)&args);
+	    //if (fgetc(stdin) == 'w') printf("cool");
+	    run(engine, frameCount % 62, 30, &cam);
+        //XNextEvent(disp, &event);
+        while (XCheckWindowEvent(disp, win, ExposureMask | KeyPressMask | KeyReleaseMask, &event)) {
+            printf("\n");
+            switch (event.type) {
+                case KeyRelease:
+                    getIn(&event);
+	                break;
+                case KeyPress:
+                    getIn(&event);
+	                break;
+            }
+            break;
+        }
+	    frameCount++;
+        //printf(":%i %i:", keyDown[0], keyDown[2]);
+        //printf("cam pos z: %f", cam.pos.z);
     } while (1);
 
     tcsetattr( STDIN_FILENO, TCSANOW, &told);
