@@ -17,12 +17,12 @@ const int pixelsLength = 299*90;
 float pixels[299*90];
 char pcols[299*90];
 float zs[299*90];
-const char * cols = " .,>x#@";//" ▏▎▍▌▋▊▉█"; // " ░▒▓█";  
-const int colsLen = 7;
+const char * cols = "      \u258F\u258E\u258D\u258C\u258B\u258A\u2589\u2588";//" .-=+x#%@";//" ▏▎▍▌▋▊▉█"; // " ░▒▓█";  
+const int colsLen = 9;
 const float charRatio = 2/1;
 float DRAWDIST = 1000;
 
-const char * keys = "wasd";
+const char * keys = "wasdijkl";
 int keyDown [8];
 const int keyDownLen = 8;
 
@@ -55,7 +55,18 @@ struct tri {
     struct vector p2;
     struct vector p3;
 };
+/*
+struct face {
+    struct vector *p1;
+    struct vector *p2;
+    struct vector *p3;
+};
 
+struct object {
+    struct vector vecs;
+    struct face;
+};
+*/
 struct camera {
     struct vector pos;
     float hrot;
@@ -137,12 +148,38 @@ void initCamera(struct camera *cam) {
 
 void draw() { for (int j = 0; j<HEIGHT; j++) {
         for (int i = 0; i<WIDTH; i++) {
-            float tone = ((float) pixels[i + j*WIDTH])/256;	
-	        putchar(cols[ffloor(tone*((float) colsLen))]);
+            float tone = ((float) pixels[i + j*WIDTH])/256;
+	    if (tone == 0) {
+		printf("\33[40;1m ");
+	    } else {
+	    	int n = ffloor(tone*((float) colsLen));
+		char print [6];
+	        print[0] = cols[n*6];
+	        for (int l = 1; l<6; l++) print[l] = cols[n*6+l];	
+	    	printf("\33[40;1m%s", print);//cols[ffloor(tone*((float) colsLen))]);
 	    }
+	}
         putchar('\n');
     }
     fflush(stdout);
+}
+
+void XlibDraw(Display * disp, Drawable win, GC gc) { for (int j = 0; j<HEIGHT; j++) {
+    XSync(disp, False);
+    Colormap colmp = DefaultColormap(disp, DefaultScreen(disp));
+    XColor xcolour;
+    xcolour.flags = DoRed | DoGreen | DoBlue;
+        for (int i = 0; i<WIDTH; i++) {
+            int tone = round((65535/255)*pixels[i + j*WIDTH]);	
+            xcolour.red = tone; xcolour.green = tone; xcolour.blue = tone;
+            
+            //XAllocColor(disp, colmp, &xcolour);
+
+            XSetForeground(disp, gc, xcolour.pixel);
+	        XDrawPoint(disp, win, gc, i, j);
+	    }
+    }
+    XFlush(disp);
 }
 
 void set(float x, float y, float col) {
@@ -521,7 +558,7 @@ void fillTriangle3d(float x1, float y1, float z1, float x2, float y2, float z2,f
     if (vecs[i].y < vecs[bottom].y) bottom = i;
   }
   
-  float z = MAX(MAX(z1, z2), z3);
+  float z = MIN(MIN(z1, z2), z3);
 
   int middle = 0;
   
@@ -596,12 +633,111 @@ struct vector getNormal(struct tri in) {
     return crossProduct(v1, v2);
 }
 
+struct tri * clip(struct tri *in, int length, struct camera cam, int *outLen) {
+    *outLen = 0;
+    struct vector pl = {
+    	.x = 0,
+	    .y = 0,
+	    .z = cam.pNear,
+    };
+    struct vector pn = {
+    	.x = 0,
+	    .y = 0,
+	    .z = 1,
+    };
+    for (int i = 0; i < length; i++) {
+        struct tri out [2];
+        int ntris = triClip(pl, pn, in[i], &out[0], &out[1]);
+        for (int j = 0; j<ntris; j++) {
+            struct tri m = out[j];
+            for (int k = 0; k < ntris; k++) {
+                struct vector pl = {.x = -1, .y = 0, .z = 0,};
+                struct vector pn = {.x = 1,	.y = 0,	.z = 0,};
+                struct tri nout [2];
+                int nntris = triClip(pl, pn, m, &nout[0], &nout[1]);
+                for (int l = 0; l<nntris; l++) {
+                struct vector pl = {.x = 1, .y = 0, .z = 0,};
+                struct vector pn = {.x = -1, .y = 0, .z = 0,};
+                struct tri nnout [2];
+                int nnntris = triClip(pl, pn, nout[l], &nnout[0], &nnout[1]);
+                for (int m = 0; m<nnntris; m++) {
+                    struct vector pl = {.x = 0, .y = -1, .z = 0,};
+                    struct vector pn = {.x = 0, .y = 1, .z = 0,};
+                    struct tri nout [2];
+                    int nntris = triClip(pl, pn, nnout[l], &nout[0], &nout[1]);
+                    for (int n = 0; n<nntris; n++) {
+                        struct vector pl = {.x = 0, .y = 1, .z = 0,};
+                        struct vector pn = {.x = 0, .y = -1, .z = 0,};
+                        struct tri nnout [2];
+                        int nnntris = triClip(pl, pn, nout[l], &nnout[0], &nnout[1]);
+                            for (int o = 0; o<nnntris; o++) {
+                                *outLen++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+	}
+    struct tri *out = malloc(sizeof(struct tri) * (* outLen));
+    int c = 0;
+    for (int i = 0; i < length; i++) {
+	struct tri out[2];
+        int ntris = triClip(pl, pn, in[i], &out[0], &out[1]);
+        for (int j = 0; j<ntris; j++) {
+            struct tri m = out[j];
+            for (int k = 0; k < ntris; k++) {
+                struct vector pl = {.x = -1, .y = 0, .z = 0,};
+                struct vector pn = {.x = 1,	.y = 0,	.z = 0,};
+                struct tri nout [2];
+                int nntris = triClip(pl, pn, m, &nout[0], &nout[1]);
+                for (int l = 0; l<nntris; l++) {
+                struct vector pl = {.x = 1, .y = 0, .z = 0,};
+                struct vector pn = {.x = -1, .y = 0, .z = 0,};
+                struct tri nnout [2];
+                int nnntris = triClip(pl, pn, nout[l], &nnout[0], &nnout[1]);
+                for (int m = 0; m<nnntris; m++) {
+                    struct vector pl = {.x = 0, .y = -1, .z = 0,};
+                    struct vector pn = {.x = 0, .y = 1, .z = 0,};
+                    struct tri nout [2];
+                    int nntris = triClip(pl, pn, nnout[l], &nout[0], &nout[1]);
+                    for (int n = 0; n<nntris; n++) {
+                        struct vector pl = {.x = 0, .y = 1, .z = 0,};
+                        struct vector pn = {.x = 0, .y = -1, .z = 0,};
+                        struct tri nnout [2];
+                        int nnntris = triClip(pl, pn, nout[l], &nnout[0], &nnout[1]);
+                            for (int o = 0; o<nnntris; o++) {
+                                out[c] = nnout[o];
+                                c++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return out;
+}
+
 void wireMesh(struct tri in [], int len, struct camera cam) {
     struct tri mapped [len];
     struct mat proj;
     getProjectionMat(cam, &proj);
+    struct mat translate;
+    initOne(&translate);
+    translate.m[3][0] = cam.pos.x;
+    translate.m[3][1] = cam.pos.y;
+    translate.m[3][2] = -cam.pos.z;
+    meshmultmat(in, mapped, len, translate);
+    /*
+    int outlen;
+
+    struct tri * toDraw = clip(mapped, len, cam, &outlen);
     
-    meshmultmat(in, mapped, len, proj);
+    for (int i = 0; i<outlen; i++) triTri(toDraw[i]);
+    */
+    
+    meshmultmat(mapped, mapped, len, proj);
     for (int i = 0; i<len; i++) {
         if (dotProduct(vecSubtract(in[i].p1,cam.pos), getNormal(in[i])) > 0) triTri(mapped[i]);
     }
@@ -4060,13 +4196,13 @@ void loop(int frameCount, struct camera * cam) {
     if (keyDown[4]) cam->pos.y++;
     if (keyDown[6]) cam->pos.y--;
 
-    //for (int i = 0; i<sizeof(keyDown); i++) keyDown[i] = 0;
+    for (int i = 0; i<sizeof(keyDown); i++) keyDown[i] = 0;
 
     meshmultmat(mesh, transd, objlen, translate);
 
     fillMesh(transd, objlen, *cam, light);
 
-    //wireMesh(transd, objlen, cam);
+    wireMesh(transd, objlen, *cam);
 }
 
 void run(void (*f)(int, struct camera *), int frameCount, float frameRate, struct camera * cam) {
@@ -4090,14 +4226,15 @@ void* getIns() {
     char b[5];
     b[0] = ' ';
     int size = sizeof(keyDown);
-    //system("xset r rate 10 100");
+    //system("xset r rate 1");
     read(STDIN_FILENO, b, 5);
     for (int i = 0; i<size; i++) {
-        if (b[0] == keys[i]) {
-            keyDown[i] = 1;
-        } else {
-            keyDown[i] = 0;
-        }
+	keyDown[i] = 0;
+	for (int i = 0; i<5; i++) {
+            if (b[0] == keys[i]) {
+            	keyDown[i] = 1;
+            }
+	}
     }
     //system("xset r rate 220 20");
     fflush(stdout);
@@ -4118,8 +4255,12 @@ void getIn(XEvent *e) {
 	//printf("coolio %c", ke->keycode);
 }
 
+struct drawInfo {
+
+};
+
 int main()  {
-    //printf("\033[47:47m");
+/*    //printf("\033[47:47m");
     Display *disp;
     Window win;
     XEvent event;
@@ -4128,8 +4269,8 @@ int main()  {
 
     int screen = DefaultScreen(disp);
 
-    win = XCreateSimpleWindow(disp, RootWindow(disp, screen), 100, 100, 100, 100, 1, BlackPixel(disp, screen), WhitePixel(disp, screen));
-
+    win = XCreateSimpleWindow(disp, RootWindow(disp, screen), 100, 100, WIDTH, HEIGHT, 1, BlackPixel(disp, screen), WhitePixel(disp, screen));
+*/
     static struct termios told, tnew;
     tcgetattr( STDIN_FILENO, &told);
     tnew = told;
@@ -4140,15 +4281,23 @@ int main()  {
 
     struct camera cam;
     initCamera(&cam);
-
+/*
     XSelectInput(disp, win, ExposureMask | KeyPressMask | KeyReleaseMask);
     XMapWindow(disp, win);
-    //pthread_create(&getInputs, NULL, getIns, (void*)&args);
+
+    XGCValues vals;
+
+    GC gc = XCreateGC(disp, win, 0, &vals);
+*/
+    //pthread_create(&getInputs, NULL, getIns, NULL);
+
     do {
-	    //pthread_create(&getInputs, NULL, getIns, (void*)&args);
+	    pthread_create(&getInputs, NULL, getIns, NULL);
 	    //if (fgetc(stdin) == 'w') printf("cool");
 	    run(engine, frameCount % 62, 30, &cam);
+        //XlibDraw(disp, win, gc);
         //XNextEvent(disp, &event);
+        /*
         while (XCheckWindowEvent(disp, win, ExposureMask | KeyPressMask | KeyReleaseMask, &event)) {
             printf("\n");
             switch (event.type) {
@@ -4160,7 +4309,7 @@ int main()  {
 	                break;
             }
             break;
-        }
+        }*/  
 	    frameCount++;
         //printf(":%i %i:", keyDown[0], keyDown[2]);
         //printf("cam pos z: %f", cam.pos.z);
