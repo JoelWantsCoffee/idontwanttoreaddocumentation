@@ -28,10 +28,10 @@ void initSurf(surface *surf, int w, int h) {
 void draw(surface surf) { 
     for (int j = 0; j<surf.height; j++) {
         for (int i = 0; i<surf.width; i++) {
-            colour col = surf.pixels[i + j*surf.height];
+            colour col = surf.pixels[i + j*surf.width];
             float tone = ( ((float)col.r + col.g + col.b)/3 )/256;	
 	        putchar(surf.cols[(int) floor(tone*(sizeof(surf.cols) - 1)) ]);
-	    }
+        }
         putchar('\n');
     }
     fflush(stdout);

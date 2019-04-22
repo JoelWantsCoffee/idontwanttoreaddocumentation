@@ -34,7 +34,7 @@ typedef struct _mesh {
 
 
 //Functions
-void matInit(mat * in, float scale) {
+void initMat(mat * in, float scale) {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             if (i == j) {
@@ -44,6 +44,18 @@ void matInit(mat * in, float scale) {
             }
         }
     }
+}
+
+void initMesh(mesh * in, int ptLen, int faLen) {
+    in->ptCount = ptLen;
+    in->faceCount = faLen;
+    in->pts = malloc(sizeof(vector) * ptLen);
+    in->faces = malloc(sizeof(face *) * faLen);
+}
+
+void freeMesh(mesh * me) {
+    free(me->pts);
+    free(me->faces);
 }
 
 mat matmultmat(mat one, mat two) {
@@ -118,6 +130,15 @@ void vecNormalise(vector * v) {
     v->z /= largestValue;
 }
 
+tri ftot(face in) {
+    tri out = {
+        .p1 = *in.p1,
+        .p2 = *in.p2,
+        .p3 = *in.p3,
+    };
+    return out;
+}
+
 //second degree functions
 vector vectormultmatScaled(vector vec, mat ma) {
     vector out = vectormultmat(vec, ma);
@@ -167,24 +188,130 @@ vector vecIntersectPlane(vector p1, vector p2, vector *l1, vector *l2) {
 	return vecAdd(*l1, pl);
 }
 
+void translateMesh(mesh *me, float x, float y, float z) {
+    mat m;
+    initMat(&m, 1);
+    m.m[3][0] = x;
+    m.m[3][1] = y;
+    m.m[3][2] = x;
+    meshmultmat(me, m);
+}
+
 void rotateMesh(mesh *me, float xrot, float yrot, float zrot) {
     mat m;
-    matInit(&m, 1);
+    initMat(&m, 1);
     m.m[1][1] = cosf(xrot);
     m.m[2][2] = cosf(xrot);
     m.m[2][1] = -sinf(xrot);
     m.m[1][2] = sinf(xrot);
     meshmultmat(me, m);
-    matInit(&m, 1);
+    initMat(&m, 1);
     m.m[0][0] = cosf(yrot);
     m.m[2][2] = cosf(yrot);
     m.m[2][0] = sinf(yrot);
     m.m[0][2] = -sinf(yrot);
     meshmultmat(me, m);
-    matInit(&m, 1);
+    initMat(&m, 1);
     m.m[0][0] = cosf(zrot);
     m.m[1][0] = -sinf(zrot);
     m.m[1][1] = cosf(zrot);
     m.m[0][1] = sinf(zrot);
     meshmultmat(me, m);
+}
+
+int clipFace(vector pl, vector pn, face in, face *out [2], vector *op [2], int *nPts) {
+    vecNormalise(&pn);
+
+    vector *ipts [3];
+    vector *opts [3];
+    int ic = 0;
+    int oc = 0;
+
+    float d0 = distance(pl, pn, in.p1);
+    float d1 = distance(pl, pn, in.p2);
+    float d2 = distance(pl, pn, in.p3);
+
+    if (d0 >= 0) {
+	    ipts[ic++] = in.p1;
+    } else {
+	    opts[oc++] = in.p1;
+    }
+
+    if (d1 >= 0) {
+    	ipts[ic++] = in.p2;
+    } else {
+	    opts[oc++] = in.p2;
+    }
+    
+    if (d2 >= 0) {
+    	ipts[ic++] = in.p3;
+    } else {
+	    opts[oc++] = in.p3;
+    }
+
+
+    if (ic == 0) {
+        *nPts = 0;
+	    return 0;  
+    } else if (ic == 3) {
+        out[0]->p1 = in.p1;
+        out[0]->p2 = in.p2;
+        out[0]->p3 = in.p3;
+
+        *nPts = 0;
+
+        return 1;
+    } else if (ic == 2) {
+        *op[0] = vecIntersectPlane(pl,pn,ipts[0],opts[0]);
+        *op[1] = vecIntersectPlane(pl,pn,ipts[1],opts[0]);
+
+
+        out[0]->p1 = ipts[0];
+        out[0]->p2 = op[0];
+        out[0]->p3 = ipts[1];
+
+        out[1]->p1 = ipts[1];
+        out[1]->p2 = out[0]->p2;
+        out[1]->p3 = op[1];
+
+        *nPts = 2;
+
+        return 2;
+    } else if (ic == 1) {
+        *op[0] = vecIntersectPlane(pl,pn,ipts[0],opts[0]);
+        *op[1] = vecIntersectPlane(pl,pn,ipts[0],opts[1]);
+
+        out[0]->p1 = ipts[0];
+        out[0]->p2 = op[0];
+        out[0]->p3 = op[1];
+
+        *nPts = 2;
+
+        return 1;
+    }
+}
+
+mesh clipMesh(mesh me, vector pl, vector pn) {
+    mesh out;
+    int ptCount;
+    int fCount;
+    face o [2];
+    face *po [2];
+    po[0] = o;
+    po[1] = o+1;
+    vector p [2];
+    vector *pp [2];
+    pp[0] = p;
+    pp[1] = p+1;
+    int t = 0;
+    for (int i = 0; i<me.faceCount; i++) {
+        fCount += clipFace(pl, pn, me.faces[i], po, pp, &t);
+        ptCount += t;
+    }
+
+    initMesh(&out, out.ptCount + ptCount, out.faceCount + fCount);
+
+    for (int i = 0; i<me.ptCount; i++) {
+        out.pts[i] = me.pts[i];
+    }
 }

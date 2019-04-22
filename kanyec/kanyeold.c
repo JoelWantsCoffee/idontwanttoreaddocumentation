@@ -8,15 +8,15 @@
 #include <locale.h>
 #include <pthread.h>
 #include <termios.h>
-#include <X11/Xlib.h>
+//#include <X11/Xlib.h>
 
 //Global Variables
-const int WIDTH = 1234;
-const int HEIGHT = 160;
-const int pixelsLength = 1234*160;
-float pixels[1234*160];
-char pcols[1234*160];
-float zs[1234*160];
+const int WIDTH = 600;
+const int HEIGHT = 108;
+const int pixelsLength = 108*600;
+float pixels[108*600];
+char pcols[108*600];
+float zs[108*600];
 const char * cols = " .,>x#@";//" ▏▎▍▌▋▊▉█"; // " ░▒▓█";  
 const int colsLen = 7;
 const float charRatio = 2/1;
@@ -4122,7 +4122,7 @@ void* getIns() {
     //system("xset r rate 220 20");
     fflush(stdout);
 }
-
+/*
 void getIn(XEvent *e) {
     XKeyEvent *ke = (XKeyEvent *) e;
     int on = (e->type == KeyPress);
@@ -4137,10 +4137,10 @@ void getIn(XEvent *e) {
     if (ke->keycode == 46) keyDown[7] = on;
 	//printf("coolio %c", ke->keycode);
 }
-
+*/
 int main()  {
     //printf("\033[47:47m");
-    Display *disp;
+    /*Display *disp;
     Window win;
     XEvent event;
     
@@ -4149,7 +4149,7 @@ int main()  {
     int screen = DefaultScreen(disp);
 
     win = XCreateSimpleWindow(disp, RootWindow(disp, screen), WIDTH, HEIGHT, WIDTH, HEIGHT, 1, BlackPixel(disp, screen), WhitePixel(disp, screen));
-
+    */
     static struct termios told, tnew;
     tcgetattr( STDIN_FILENO, &told);
     tnew = told;
@@ -4161,15 +4161,15 @@ int main()  {
     struct camera cam;
     initCamera(&cam);
 
-    XSelectInput(disp, win, ExposureMask | KeyPressMask | KeyReleaseMask);
-    XMapWindow(disp, win);
+    //XSelectInput(disp, win, ExposureMask | KeyPressMask | KeyReleaseMask);
+    //XMapWindow(disp, win);
     //pthread_create(&getInputs, NULL, getIns, (void*)&args);
     do {
-	    //pthread_create(&getInputs, NULL, getIns, (void*)&args);
+	    pthread_create(&getInputs, NULL, getIns, NULL);
 	    //if (fgetc(stdin) == 'w') printf("cool");
 	    run(engine, frameCount % 62, 30, &cam);
         //XNextEvent(disp, &event);
-        while (XCheckWindowEvent(disp, win, ExposureMask | KeyPressMask | KeyReleaseMask, &event)) {
+        /*while (XCheckWindowEvent(disp, win, ExposureMask | KeyPressMask | KeyReleaseMask, &event)) {
             printf("\n");
             switch (event.type) {
                 case KeyRelease:
@@ -4180,7 +4180,7 @@ int main()  {
 	                break;
             }
             break;
-        }
+        }*/
 	    frameCount++;
         //printf(":%i %i:", keyDown[0], keyDown[2]);
         //printf("cam pos z: %f", cam.pos.z);

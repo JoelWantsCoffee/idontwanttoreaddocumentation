@@ -1,8 +1,8 @@
-#include "surfaces.h"
-#include "vecmat.h"
-
+//#include "surfaces.h"
+//#include "vecmat.h"
+#define sign(a) (((a)<(0))?(-1):(1))
 //Structs
-struct _camera {
+typedef struct _camera {
     vector pos;
     float hrot;
     float vrot;
@@ -21,6 +21,11 @@ struct _camera {
 } camera;
 
 //functions
+void wipe(camera *cam) {
+    background(&(cam->dists), mColour(cam->drawDist));
+    background(&(cam->image), mColour(0));
+}
+
 void initCamera(camera *cam, int w, int h) {
     cam->hrot = 0;
     cam->vrot = 0;
@@ -39,13 +44,11 @@ void initCamera(camera *cam, int w, int h) {
 
     initSurf(&(cam->image), w, h);
     initSurf(&(cam->dists), w, h);
+
+    wipe(cam);
 }
 
-void clearzs(camera *cam) {
-    background(&(cam->dists), cam->drawDist);
-}
-
-void getProjectionMat(camera cam, struct mat * out) {
+void getProjectionMat(camera cam, mat * out) {
     initMat(out, 0);
     float aspectRatio = ((float) cam.width) / ((float) cam.height);
     out->m[0][0] = cam.fovRad/aspectRatio;
@@ -59,8 +62,8 @@ void set3d(camera *cam, float x, float y, float z, colour col) {
     int w = cam->width;
     int h = cam->height;
     if (((x >= 0) && (y >= 0)) && ((x < w) && (y < h))) {
-        if (cam->dists.pixels[((int) x) + ((int) y)*w].r > z) {
-            cam->dists.pixels[[((int) x) +((int) y)*h].r = z;
+        if ((cam->dists.pixels[((int) x) + ((int) y)*w].r) > z) {
+            cam->dists.pixels[((int) x) + ((int) y)*h].r = z;
             cam->image.pixels[((int) x) + ((int) y)*w] = col;
         }
     }
@@ -97,7 +100,7 @@ void line3d(camera *cam, float x1, float y1, float z1, float x2, float y2, float
     }
 }
 
-void triTri(camera *cam, tri t) {
+void tri3d(camera *cam, tri t) {
     float charRatio = cam->charRatio;
     float w = cam->width;
     float h = cam->height;
@@ -110,4 +113,15 @@ void triTri(camera *cam, tri t) {
     line3d(cam, x1, y1, t.p1.z, x2, y2, t.p2.z);
     line3d(cam, x2, y2, t.p2.z, x3, y3, t.p3.z);
     line3d(cam, x3, y3, t.p3.z, x1, y1, t.p1.z);
+}
+
+void mesh3d(camera *cam, mesh me) {
+    translateMesh(&me, cam->pos.x, cam->pos.y, cam->pos.z);
+    rotateMesh(&me, cam->hrot, 0, cam->vrot);
+    mat proj;
+    getProjectionMat(*cam, &proj);
+    meshmultmat(&me, proj);
+    for (int i = 0; i<me.faceCount; i++) {
+        tri3d(cam, ftot(me.faces[i]));
+    }
 }
