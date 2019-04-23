@@ -248,9 +248,9 @@ struct mat multimat(struct mat one, struct mat two) {
 struct vector vectormultimat(struct vector vec, struct mat ma) {
     struct vector out = {
         .x = vec.x * ma.m[0][0] + vec.y * ma.m[1][0] + vec.z * ma.m[2][0] + ma.m[3][0],
-        .y = vec.y * ma.m[0][1] + vec.y * ma.m[1][1] + vec.z * ma.m[2][1] + ma.m[3][1],
+        .y = vec.x * ma.m[0][1] + vec.y * ma.m[1][1] + vec.z * ma.m[2][1] + ma.m[3][1],
         .z = vec.x * ma.m[0][2] + vec.y * ma.m[1][2] + vec.z * ma.m[2][2] + ma.m[3][2],
-        .w = vec.y * ma.m[0][3] + vec.y * ma.m[1][3] + vec.z * ma.m[2][3] + ma.m[3][3],
+        .w = vec.x * ma.m[0][3] + vec.y * ma.m[1][3] + vec.z * ma.m[2][3] + ma.m[3][3],
     };
     return out;
 }
@@ -333,11 +333,11 @@ void triTri(struct tri t) {
 
 
 struct vector crossProduct(struct vector v1, struct vector v2) {
-    struct vector out;
-
-    out.x = v1.y*v2.z - v1.z*v2.y;
-    out.y = v1.z*v2.x - v1.x*v2.z;
-    out.z = v1.x*v2.y - v1.y*v2.x;
+    struct vector out = {
+        .x = v1.y*v2.z - v1.z*v2.y,
+        .y = v1.z*v2.x - v1.x*v2.z,
+        .z = v1.x*v2.y - v1.y*v2.x,
+    };
 
     return out;
 }
@@ -349,27 +349,27 @@ float dotProduct(struct vector v1, struct vector v2) {
 
 struct vector vecSubtract(struct vector v1, struct vector v2) {
     struct vector out = {
-	.x = v1.x - v2.x,
-	.y = v1.y - v2.y,
-	.z = v1.z - v2.z,
+        .x = v1.x - v2.x,
+        .y = v1.y - v2.y,
+        .z = v1.z - v2.z,
     };
     return out;
 }
 
 struct vector vecAdd(struct vector v1, struct vector v2) {
     struct vector out = {
-	.x = v1.x + v2.x,
-	.y = v1.y + v2.y,
-	.z = v1.z + v2.z,
+        .x = v1.x + v2.x,
+        .y = v1.y + v2.y,
+        .z = v1.z + v2.z,
     };
     return out;
 }
 
 struct vector scale(struct vector v, float s) {
     struct vector out = {
-	.x = v.x * s,
-	.y = v.y * s,
-	.z = v.z * s,	
+        .x = v.x * s,
+        .y = v.y * s,
+        .z = v.z * s,	
     };
     return out;
 }

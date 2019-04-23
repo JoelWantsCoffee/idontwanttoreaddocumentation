@@ -102,8 +102,8 @@ void line3d(camera *cam, float x1, float y1, float z1, float x2, float y2, float
 
 void tri3d(camera *cam, tri t) {
     float charRatio = cam->charRatio;
-    float w = cam->width;
-    float h = cam->height;
+    float w = (float) cam->width;
+    float h = (float) cam->height;
     float x1 = (t.p1.x * w/2) * charRatio + w/2;
     float y1 = t.p1.y * h/2 + h/2;
     float x2 = (t.p2.x * w/2 ) * charRatio + w/2;
@@ -116,7 +116,7 @@ void tri3d(camera *cam, tri t) {
 }
 
 void mesh3d(camera *cam, mesh me) {
-    translateMesh(&me, cam->pos.x, cam->pos.y, cam->pos.z);
+    translateMesh(&me, cam->pos.x, cam->pos.y, -(cam->pos.z));
     rotateMesh(&me, cam->hrot, 0, cam->vrot);
     mat proj;
     getProjectionMat(*cam, &proj);

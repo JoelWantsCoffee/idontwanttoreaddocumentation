@@ -74,20 +74,19 @@ mat matmultmat(mat one, mat two) {
 vector vectormultmat(vector vec, mat ma) {
     vector out = {
         .x = vec.x * ma.m[0][0] + vec.y * ma.m[1][0] + vec.z * ma.m[2][0] + ma.m[3][0],
-        .y = vec.y * ma.m[0][1] + vec.y * ma.m[1][1] + vec.z * ma.m[2][1] + ma.m[3][1],
+        .y = vec.x * ma.m[0][1] + vec.y * ma.m[1][1] + vec.z * ma.m[2][1] + ma.m[3][1],
         .z = vec.x * ma.m[0][2] + vec.y * ma.m[1][2] + vec.z * ma.m[2][2] + ma.m[3][2],
-        .w = vec.y * ma.m[0][3] + vec.y * ma.m[1][3] + vec.z * ma.m[2][3] + ma.m[3][3],
+        .w = vec.x * ma.m[0][3] + vec.y * ma.m[1][3] + vec.z * ma.m[2][3] + ma.m[3][3],
     };
     return out;
 }
 
 vector crossProduct(vector v1, vector v2) {
-    vector out;
-
-    out.x = v1.y*v2.z - v1.z*v2.y;
-    out.y = v1.z*v2.x - v1.x*v2.z;
-    out.z = v1.x*v2.y - v1.y*v2.x;
-
+    vector out = {
+        .x = v1.y*v2.z - v1.z*v2.y,
+        .y = v1.z*v2.x - v1.x*v2.z,
+        .z = v1.x*v2.y - v1.y*v2.x,
+    };
     return out;
 }
 
@@ -97,27 +96,27 @@ float dotProduct(vector v1, vector v2) {
 
 vector vecSubtract(vector v1, vector v2) {
     vector out = {
-	.x = v1.x - v2.x,
-	.y = v1.y - v2.y,
-	.z = v1.z - v2.z,
+        .x = v1.x - v2.x,
+        .y = v1.y - v2.y,
+        .z = v1.z - v2.z,
     };
     return out;
 }
 
 vector vecAdd(vector v1, vector v2) {
     vector out = {
-	.x = v1.x + v2.x,
-	.y = v1.y + v2.y,
-	.z = v1.z + v2.z,
+        .x = v1.x + v2.x,
+        .y = v1.y + v2.y,
+        .z = v1.z + v2.z,
     };
     return out;
 }
 
 vector scale(vector v, float s) {
     vector out = {
-	.x = v.x * s,
-	.y = v.y * s,
-	.z = v.z * s,	
+        .x = v.x * s,
+        .y = v.y * s,
+        .z = v.z * s,	
     };
     return out;
 }
@@ -162,7 +161,7 @@ tri trianglemultmat(tri tr, mat ma) {
 }
 
 void meshmultmat(mesh *me, mat ma) {
-    for (int i = 0; i<me->ptCount; i++) me->pts[i] = vectormultmat(me->pts[i], ma);
+    for (int i = 0; i<me->ptCount; i++) me->pts[i] = vectormultmatScaled(me->pts[i], ma);
 }
 
 float magnitude(vector in) {
@@ -193,7 +192,7 @@ void translateMesh(mesh *me, float x, float y, float z) {
     initMat(&m, 1);
     m.m[3][0] = x;
     m.m[3][1] = y;
-    m.m[3][2] = x;
+    m.m[3][2] = z;
     meshmultmat(me, m);
 }
 
@@ -291,10 +290,10 @@ int clipFace(vector pl, vector pn, face in, face *out [2], vector *op [2], int *
     }
 }
 
-mesh clipMesh(mesh me, vector pl, vector pn) {
+void clipMesh(mesh *me, vector pl, vector pn) {
     mesh out;
     int ptCount;
-    int fCount;
+    int faCount;
     face o [2];
     face *po [2];
     po[0] = o;
@@ -304,14 +303,30 @@ mesh clipMesh(mesh me, vector pl, vector pn) {
     pp[0] = p;
     pp[1] = p+1;
     int t = 0;
-    for (int i = 0; i<me.faceCount; i++) {
-        fCount += clipFace(pl, pn, me.faces[i], po, pp, &t);
+    for (int i = 0; i<me->faceCount; i++) {
+        faCount += clipFace(pl, pn, me->faces[i], po, pp, &t);
         ptCount += t;
     }
 
-    initMesh(&out, out.ptCount + ptCount, out.faceCount + fCount);
+    initMesh(&out, out.ptCount + ptCount, out.faceCount + faCount);
 
-    for (int i = 0; i<me.ptCount; i++) {
-        out.pts[i] = me.pts[i];
+    ptCount = 0;
+    faCount = 0;
+
+    for (int i = 0; i<me->ptCount; i++) out.pts[i] = me->pts[i];
+
+    for (int i = 0; i<me->faceCount; i++) {
+        pp[0] = &out.pts[me->ptCount + ptCount];
+        pp[1] = &out.pts[me->ptCount + ptCount + 1];
+
+        po[0] = &out.faces[faCount];
+        po[1] = &out.faces[faCount+1];
+
+        faCount += clipFace(pl, pn, me->faces[i], po, pp, &t);
+
+        ptCount += t;
     }
+
+    *me = out;
+    freeMesh(&out);
 }
