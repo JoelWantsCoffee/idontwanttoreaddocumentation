@@ -13,51 +13,50 @@
 #include "cam3d.h"
 #include "shells.h"
 
-void loop(input *ins, int fc, int arg) {
+void loop(input *ins, int fc, void * arg) {
     camera c;
-    initCamera(&c, 80, 40);
-
+    initCamera(&c, 400, 100);
     mesh me;
-    
-    initMesh(&me, 3, 1);
+    inportObj(&me, "cube.obj");
 
-    {
-        me.pts[0].x = -0.2;
-        me.pts[0].y = -0.3;
-        me.pts[0].z = 1;
-        me.pts[1].x = 0.4;
-        me.pts[1].y = -0.4;
-        me.pts[1].z = 1;
-        me.pts[2].x = 0.2;
-        me.pts[2].y = 0.4;
-        me.pts[2].z = 1;
+    if (ins->on[0]) ((vector*) arg)->z += 0.1;
+    if (ins->on[1]) ((vector*) arg)->x += 0.1;
+    if (ins->on[2]) ((vector*) arg)->z -= 0.1;
+    if (ins->on[3]) ((vector*) arg)->x -= 0.1;
 
-        me.faces[0].p1 = &me.pts[0]; 
-        me.faces[0].p2 = &me.pts[1]; 
-        me.faces[0].p3 = &me.pts[2]; 
-    }
-    
-    if (ins->on[0]) {
-        c.pos.z = -0.1;
-    }
-    if (ins->on[2]) {
-       c.pos.z = 0.1;
-    }
-    
+    if (ins->on[4]) ((vector*) arg)->y += 0.1;
+    if (ins->on[6]) ((vector*) arg)->y -= 0.1;
+
+    c.pos.z = ((vector*) arg)->z;
+    c.pos.x = ((vector*) arg)->x;
+    c.pos.y = ((vector*) arg)->y;
+
     mesh3d(&c, me);
 
     draw(c.image);
+
+    freeCamera(&c);
+    freeMesh(&me);
 
     clearIns(ins);
 }
 
 int main() {
+    mesh me;
+
+    vector pos = {
+        .x = 0,
+        .y = 0,
+        .z = 0,
+    };
+
     liveInputs();
     shell sh;
     initShell(&sh, &loop);
+
     while (1) {
         getIns(&sh.ins);
-        run(&sh, 0, 0, 30);
+        run(&sh, 0, &pos, 30);
     }
     return 0;
 }

@@ -5,17 +5,17 @@ typedef struct _input {
 } input;
 
 typedef struct _shell {
-    void (*fp)(input*, int, int);
+    void (*fp)(input*, int, void *);
     input ins;
 } shell;
 
 //functions
-void initShell(shell *in, void (*fp)(input *, int, int)) {
+void initShell(shell *in, void (*fp)(input *, int, void *)) {
     in->fp = fp;
     in->ins.keys = ("wasdijkl");
 }
 
-void run(shell *f, int arg, int frameCount, float frameRate) {
+void run(shell *f, int frameCount, void * arg, float frameRate) {
     clock_t mt;
     mt = clock();
     clock_t t;

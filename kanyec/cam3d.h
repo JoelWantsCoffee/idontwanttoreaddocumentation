@@ -48,6 +48,11 @@ void initCamera(camera *cam, int w, int h) {
     wipe(cam);
 }
 
+void freeCamera(camera *cam) {
+    freeSurf(&cam->image);
+    freeSurf(&cam->dists);
+}
+
 void getProjectionMat(camera cam, mat * out) {
     initMat(out, 0);
     float aspectRatio = ((float) cam.width) / ((float) cam.height);
@@ -119,9 +124,120 @@ void mesh3d(camera *cam, mesh me) {
     translateMesh(&me, cam->pos.x, cam->pos.y, -(cam->pos.z));
     rotateMesh(&me, cam->hrot, 0, cam->vrot);
     mat proj;
+    vector pl = {.x = 0, .y = 0, .z = cam->pNear};
+    vector pn = {.x = 0, .y = 0, .z = 1};
+    //clipMesh(&me, pl, pn);
     getProjectionMat(*cam, &proj);
     meshmultmat(&me, proj);
     for (int i = 0; i<me.faceCount; i++) {
         tri3d(cam, ftot(me.faces[i]));
     }
 }
+
+int pullSubString(char * in, int inLen, char * out, char b, int index) {
+    /*printf("\n---------------stat--------------\n");
+    printf("Char: (%c)\n", b);
+    printf("In len: (%d)\n", inLen);
+    printf("Index: (%d)\n", index);
+    printf("in: %s", in);*/
+    int c = 0;
+    for (int i = 0; i<inLen; i++) {
+        //printf("(%c vs %c)\n", in[i], b);
+        if (c == index) {
+            //printf("\n--index Reached--\n");
+            int j;
+            //for (j = 1; (!(in[i + j] == b) && (j+i < inLen)); j++); 
+            //out = malloc(sizeof(char) * j);
+            for (j = 0; (!(in[i + j] == b) && (j+i < inLen)); j++) {
+                out[j] = in[i+j];
+            }
+            out[j] = '\0';
+            //printf("out len: %d\n", j);
+            //printf("out: (%s)\n", out);
+            return j;
+        }
+
+        if (in[i] == b) c++;
+    }
+    return 0;
+}
+
+void inportObj(mesh *me, char * fileName) {
+    FILE *fp;
+
+    fp = fopen(fileName, "r");
+
+    int len = 0;
+
+    char ch;
+
+    while((ch = fgetc(fp)) != EOF) {
+        len++;
+    }
+
+    char t [len + 1];
+    int c = 0;
+
+    rewind(fp);
+
+    while((ch = fgetc(fp)) != EOF) {
+        t[c] = ch;
+        c++;
+    }
+
+    fclose(fp);
+
+    t[c] = '\0';
+    int ptCount = 0;
+    int faCount = 0;
+
+    int lCount = 0;
+
+    for (int c = 0; c<len+1; c++) {
+        if (t[c] == 'v') ptCount++;
+        if (t[c] == 'f') faCount++;
+        if (t[c] == '\n') lCount++;
+    }
+
+    //printf("pt count: %d, f count %d", ptCount, faCount);
+
+    initMesh(me, ptCount, faCount);
+
+    //printf("whot %d", lCount);
+    //fflush(stdout);
+
+    int ptTally = 0;
+    int faTally = 0;
+
+    for (int i = 0; i<lCount+1; i++) {
+
+
+        char line [100];
+        int l = pullSubString(t, len, line, '\n', i);
+        //printf("str: (%s)\n", line);
+        //fflush(stdout);
+
+        if (line[0] == 'v') {
+            //printf("tally: %d", ptTally);
+            char num [100];
+            pullSubString(line, l, num, ' ', 1);
+            me->pts[ptTally].x = (float) atof(num);
+            pullSubString(line, l, num, ' ', 2);
+            me->pts[ptTally].y = (float) atof(num);
+            pullSubString(line, l, num, ' ', 3);
+            me->pts[ptTally].z = (float) atof(num);
+            ptTally++;
+        }
+        if (line[0] == 'f') {
+            char num [100];
+            pullSubString(line, l, num, ' ', 1);
+            me->faces[faTally].p1 = &(me->pts[atoi(num) - 1]);
+            pullSubString(line, l, num, ' ', 2);
+            me->faces[faTally].p2 = &(me->pts[atoi(num) - 1]);
+            pullSubString(line, l, num, ' ', 3);
+            me->faces[faTally].p3 = &(me->pts[atoi(num) - 1]);
+            faTally++;
+        }
+    }
+}
+

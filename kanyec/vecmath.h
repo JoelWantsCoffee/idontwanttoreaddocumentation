@@ -50,7 +50,7 @@ void initMesh(mesh * in, int ptLen, int faLen) {
     in->ptCount = ptLen;
     in->faceCount = faLen;
     in->pts = malloc(sizeof(vector) * ptLen);
-    in->faces = malloc(sizeof(face *) * faLen);
+    in->faces = malloc(sizeof(face) * faLen);
 }
 
 void freeMesh(mesh * me) {
@@ -253,10 +253,7 @@ int clipFace(vector pl, vector pn, face in, face *out [2], vector *op [2], int *
         *nPts = 0;
 	    return 0;  
     } else if (ic == 3) {
-        out[0]->p1 = in.p1;
-        out[0]->p2 = in.p2;
-        out[0]->p3 = in.p3;
-
+        *out[0] = in;
         *nPts = 0;
 
         return 1;
@@ -292,8 +289,8 @@ int clipFace(vector pl, vector pn, face in, face *out [2], vector *op [2], int *
 
 void clipMesh(mesh *me, vector pl, vector pn) {
     mesh out;
-    int ptCount;
-    int faCount;
+    int ptCount = 0;
+    int faCount = 0;
     face o [2];
     face *po [2];
     po[0] = o;
@@ -308,7 +305,7 @@ void clipMesh(mesh *me, vector pl, vector pn) {
         ptCount += t;
     }
 
-    initMesh(&out, out.ptCount + ptCount, out.faceCount + faCount);
+    initMesh(&out, me->ptCount + ptCount, me->faceCount + faCount);
 
     ptCount = 0;
     faCount = 0;
@@ -320,10 +317,11 @@ void clipMesh(mesh *me, vector pl, vector pn) {
         pp[1] = &out.pts[me->ptCount + ptCount + 1];
 
         po[0] = &out.faces[faCount];
-        po[1] = &out.faces[faCount+1];
+        po[1] = &out.faces[faCount + 1];
 
-        faCount += clipFace(pl, pn, me->faces[i], po, pp, &t);
+        int faCountInc = clipFace(pl, pn, me->faces[i], po, pp, &t);
 
+        faCount += faCountInc;
         ptCount += t;
     }
 

@@ -11,18 +11,22 @@ typedef struct _surface {
     colour lastCol;
     int width;
     int height;
-    char *cols;
-    colour * pixels;
     size_t pixelsLength;
+    char cols [8];
+    colour * pixels;
 } surface;
 
 //functions
 void initSurf(surface *surf, int w, int h) {
-    surf->cols = (" .,>x#@");
-    surf->pixels = (colour *) malloc(sizeof(colour) * w * h);
+    strcpy(surf->cols, " .,>x#@");
     surf->pixelsLength = w*h;
     surf->width = w;
     surf->height = h;
+    surf->pixels = malloc(w * h * sizeof(colour));
+}
+
+void freeSurf(surface *surf) {
+    free(surf->pixels);
 }
 
 void draw(surface surf) { 
