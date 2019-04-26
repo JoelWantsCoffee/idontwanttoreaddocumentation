@@ -17,12 +17,14 @@ typedef struct _tri {
     vector p1;
     vector p2;
     vector p3;
+    long var;
 } tri;
 
 typedef struct _face {
     vector *p1;
     vector *p2;
     vector *p3;
+    long var;
 } face;
 
 typedef struct _mesh {
@@ -108,6 +110,7 @@ vector vecAdd(vector v1, vector v2) {
         .x = v1.x + v2.x,
         .y = v1.y + v2.y,
         .z = v1.z + v2.z,
+        .w = v1.w + v2.w,
     };
     return out;
 }
@@ -116,7 +119,8 @@ vector scale(vector v, float s) {
     vector out = {
         .x = v.x * s,
         .y = v.y * s,
-        .z = v.z * s,	
+        .z = v.z * s,
+        .w = v.w * s,
     };
     return out;
 }
@@ -134,6 +138,7 @@ tri ftot(face in) {
         .p1 = *in.p1,
         .p2 = *in.p2,
         .p3 = *in.p3,
+        .var = in.var,
     };
     return out;
 }
@@ -169,7 +174,7 @@ float magnitude(vector in) {
 }
 
 float sudoTheta(vector v1, vector v2) {
-    return (dotProduct(v1, v2)/(magnitude(v1), magnitude(v2)));
+    return (dotProduct(v1, v2)/(magnitude(v1) * magnitude(v2)));
 }
 
 float distance(vector p, vector n, vector *v) {
@@ -218,34 +223,32 @@ void rotateMesh(mesh *me, float xrot, float yrot, float zrot) {
     meshmultmat(me, m);
 }
 
-int clipFace(vector pl, vector pn, face in, face *out [2], vector *op [2], int *nPts) {
+int clipFaceNums(vector pl, vector pn, face *in, int *nPts) {
     vecNormalise(&pn);
 
-    vector *ipts [3];
-    vector *opts [3];
     int ic = 0;
     int oc = 0;
 
-    float d0 = distance(pl, pn, in.p1);
-    float d1 = distance(pl, pn, in.p2);
-    float d2 = distance(pl, pn, in.p3);
+    float d0 = distance(pl, pn, in->p1);
+    float d1 = distance(pl, pn, in->p2);
+    float d2 = distance(pl, pn, in->p3);
 
     if (d0 >= 0) {
-	    ipts[ic++] = in.p1;
+	    ic++;
     } else {
-	    opts[oc++] = in.p1;
+	    oc++;
     }
 
     if (d1 >= 0) {
-    	ipts[ic++] = in.p2;
+    	ic++;
     } else {
-	    opts[oc++] = in.p2;
+	    oc++;
     }
     
     if (d2 >= 0) {
-    	ipts[ic++] = in.p3;
+    	ic++;
     } else {
-	    opts[oc++] = in.p3;
+	    oc++;
     }
 
 
@@ -253,7 +256,62 @@ int clipFace(vector pl, vector pn, face in, face *out [2], vector *op [2], int *
         *nPts = 0;
 	    return 0;  
     } else if (ic == 3) {
-        *out[0] = in;
+        *nPts = 0;
+        return 1;
+    } else if (ic == 2) {
+        *nPts = 2;
+        return 2;
+    } else if (ic == 1) {
+        *nPts = 2;
+        return 1;
+    }
+}
+
+int clipFace(vector pl, vector pn, face *in, face *out [2], vector *op [2], int *nPts, mesh *meIn, mesh *meOut) {
+    vecNormalise(&pn);
+
+    out[0]->var = in->var;
+    out[1]->var = in->var;
+
+    vector *ipts [3];
+    vector *opts [3];
+    int ic = 0;
+    int oc = 0;
+
+    float d0 = distance(pl, pn, in->p1);
+    float d1 = distance(pl, pn, in->p2);
+    float d2 = distance(pl, pn, in->p3);
+
+
+
+    vector * inDex = meIn->pts;
+
+    if (d0 >= 0) {
+	    ipts[ic++] = &meOut->pts[in->p1 - inDex];
+    } else {
+	    opts[oc++] = &meOut->pts[in->p1 - inDex];
+    }
+
+    if (d1 >= 0) {
+    	ipts[ic++] = &meOut->pts[in->p2 - inDex];
+    } else {
+	    opts[oc++] = &meOut->pts[in->p2 - inDex];
+    }
+    
+    if (d2 >= 0) {
+    	ipts[ic++] = &meOut->pts[in->p3 - inDex];
+    } else {
+	    opts[oc++] = &meOut->pts[in->p3 - inDex];
+    }
+
+
+    if (ic == 0) {
+        *nPts = 0;
+	    return 0;  
+    } else if (ic == 3) {
+        out[0]->p1 = &meOut->pts[in->p1 - inDex];
+        out[0]->p2 = &meOut->pts[in->p2 - inDex];
+        out[0]->p3 = &meOut->pts[in->p3 - inDex];
         *nPts = 0;
 
         return 1;
@@ -267,7 +325,7 @@ int clipFace(vector pl, vector pn, face in, face *out [2], vector *op [2], int *
         out[0]->p3 = ipts[1];
 
         out[1]->p1 = ipts[1];
-        out[1]->p2 = out[0]->p2;
+        out[1]->p2 = op[0];
         out[1]->p3 = op[1];
 
         *nPts = 2;
@@ -287,6 +345,8 @@ int clipFace(vector pl, vector pn, face in, face *out [2], vector *op [2], int *
     }
 }
 
+
+
 void clipMesh(mesh *me, vector pl, vector pn) {
     mesh out;
     int ptCount = 0;
@@ -301,30 +361,46 @@ void clipMesh(mesh *me, vector pl, vector pn) {
     pp[1] = p+1;
     int t = 0;
     for (int i = 0; i<me->faceCount; i++) {
-        faCount += clipFace(pl, pn, me->faces[i], po, pp, &t);
+        faCount += clipFaceNums(pl, pn, &me->faces[i], &t);
         ptCount += t;
     }
 
-    initMesh(&out, me->ptCount + ptCount, me->faceCount + faCount);
+    if (faCount > 0) {
+        initMesh(&out, me->ptCount + ptCount, faCount);
 
-    ptCount = 0;
-    faCount = 0;
+        ptCount = 0;
+        faCount = 0;
 
-    for (int i = 0; i<me->ptCount; i++) out.pts[i] = me->pts[i];
+        for (int i = 0; i<me->ptCount; i++) out.pts[i] = me->pts[i];
 
-    for (int i = 0; i<me->faceCount; i++) {
-        pp[0] = &out.pts[me->ptCount + ptCount];
-        pp[1] = &out.pts[me->ptCount + ptCount + 1];
+        for (int i = 0; i<me->faceCount; i++) {
+            pp[0] = &out.pts[me->ptCount + ptCount];
+            pp[1] = &out.pts[me->ptCount + ptCount + 1];
 
-        po[0] = &out.faces[faCount];
-        po[1] = &out.faces[faCount + 1];
+            po[0] = &out.faces[faCount];
+            po[1] = &out.faces[faCount + 1];
 
-        int faCountInc = clipFace(pl, pn, me->faces[i], po, pp, &t);
+            int faCountInc = clipFace(pl, pn, &me->faces[i], po, pp, &t, me, &out);
 
-        faCount += faCountInc;
-        ptCount += t;
+            faCount += faCountInc;
+            ptCount += t;
+        }
+        //freeMesh(me);
+        *me = out;
+    } else {
+        initMesh(&out, 1, 1);
+        out.ptCount = 0;
+        out.faceCount = 0;
+        *me = out;
     }
+}
 
-    *me = out;
-    freeMesh(&out);
+void dupeMesh(mesh *in, mesh *out) {
+    initMesh(out, in->ptCount, in->faceCount);
+    for (int i = 0; i<in->ptCount; i++) out->pts[i] = in->pts[i];
+    for (int i = 0; i<in->faceCount; i++) {
+        out->faces[i].p1 = &out->pts[in->faces[i].p1 - in->pts];
+        out->faces[i].p2 = &out->pts[in->faces[i].p2 - in->pts];
+        out->faces[i].p3 = &out->pts[in->faces[i].p3 - in->pts];
+    }
 }

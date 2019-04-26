@@ -12,13 +12,13 @@ typedef struct _surface {
     int width;
     int height;
     size_t pixelsLength;
-    char cols [8];
+    char cols [9];
     colour * pixels;
 } surface;
 
 //functions
 void initSurf(surface *surf, int w, int h) {
-    strcpy(surf->cols, " .,>x#@");
+    strcpy(surf->cols, " .,>xX#@");
     surf->pixelsLength = w*h;
     surf->width = w;
     surf->height = h;
@@ -33,8 +33,26 @@ void draw(surface surf) {
     for (int j = 0; j<surf.height; j++) {
         for (int i = 0; i<surf.width; i++) {
             colour col = surf.pixels[i + j*surf.width];
-            float tone = ( ((float)col.r + col.g + col.b)/3 )/256;	
+            float tone = ( ((float)col.r + col.g + col.b)/(3*256) );	
 	        putchar(surf.cols[(int) floor(tone*(sizeof(surf.cols) - 1)) ]);
+        }
+        putchar('\n');
+    }
+    fflush(stdout);
+}
+
+void drawStipple(surface surf, int res) { 
+    for (int j = 0; j<surf.height; j++) {
+        for (int i = 0; i<surf.width; i++) {
+            colour col = surf.pixels[i + j*surf.width];
+            int tone = (int) floor( (((float)col.r + col.g + col.b)/(3*256) - 0.5)*res);
+            int num = (i + j) % MAX(abs(tone), 2);
+            num = (num>0); 
+            if (num - (tone < 0)) {
+                putchar(surf.cols[(int) floor(( ((float)col.r + col.g + col.b)/(3*256) )*(sizeof(surf.cols) - 1)) ]);
+            } else {
+                putchar(surf.cols[0]);
+            }
         }
         putchar('\n');
     }
